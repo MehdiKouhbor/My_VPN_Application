@@ -9,7 +9,7 @@ import android.content.pm.PackageManager
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.enableEdgeToEdge
+import android.view.View
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -18,7 +18,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.myvpnapplication.databinding.ActivityMainBinding
-import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -42,7 +41,6 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        enableEdgeToEdge()
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -58,33 +56,21 @@ class MainActivity : AppCompatActivity() {
             }
 
         // لانچر برای درخواست مجوزها
-        permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-            val allPermissionsGranted = permissions.values.all { it }
-            if (allPermissionsGranted) {
-                // مجوزها داده شد
-                startVpnService() // شروع سرویس VPN در صورت نیاز
-            } else {
-                // مجوزها داده نشدند
-                // مدیریت عدم اعطای مجوز
+        permissionLauncher =
+            registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+                val allPermissionsGranted = permissions.values.all { it }
+                if (allPermissionsGranted) {
+                    startVpnService() // شروع سرویس VPN در صورت نیاز
+                } else {
+                    // مدیریت عدم اعطای مجوز
+                }
             }
-        }
 
         // درخواست مجوزها
         requestPermissions()
 
-        // دکمه شروع یا قطع VPN
-        binding.startVpnButton.setOnClickListener {
-            if (!isVpnActive) {
-                val intent: Intent? = VpnService.prepare(this)
-                if (intent != null) {
-                    vpnLauncher.launch(intent) // اگر intent خالی نیست، آن را به لانچر ارسال کن
-                } else {
-                    startVpnService() // اگر نیازی به درخواست نیست، مستقیم سرویس VPN را شروع کن
-                }
-            } else {
-                stopVpnService() // اگر VPN فعال است، سرویس را متوقف کن
-            }
-        }
+        // تنظیم دکمه اتصال VPN
+        setupConnectButton(binding.root)
     }
 
     override fun onResume() {
@@ -110,13 +96,37 @@ class MainActivity : AppCompatActivity() {
         }
 
         // اگر مجوز VPN وجود ندارد، آن را به لیست اضافه کن
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.BIND_VPN_SERVICE) != PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.BIND_VPN_SERVICE
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             permissionsToRequest.add(Manifest.permission.BIND_VPN_SERVICE)
         }
 
         // اگر لیست خالی نیست، مجوزها را درخواست کن
         if (permissionsToRequest.isNotEmpty()) {
             permissionLauncher.launch(permissionsToRequest.toTypedArray())
+        }
+    }
+
+    // تنظیم دکمه اتصال VPN
+    private fun setupConnectButton(view: View) {
+        val button = binding.startVpnButton
+
+        button.setOnClickListener {
+            if (isVpnActive) {
+                // توقف سرویس VPN
+                stopVpnService()
+            } else {
+                // شروع سرویس VPN
+                val intent: Intent? = VpnService.prepare(this)
+                if (intent != null) {
+                    vpnLauncher.launch(intent) // اگر نیاز به درخواست مجوز باشد
+                } else {
+                    startVpnService() // مستقیم شروع می‌شود
+                }
+            }
         }
     }
 
